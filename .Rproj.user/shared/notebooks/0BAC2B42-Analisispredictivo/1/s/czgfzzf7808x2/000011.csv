@@ -1,0 +1,2 @@
+"0","# Verificar las primeras filas de las probabilidades de predicción"
+"0","head(prob_predictions)"

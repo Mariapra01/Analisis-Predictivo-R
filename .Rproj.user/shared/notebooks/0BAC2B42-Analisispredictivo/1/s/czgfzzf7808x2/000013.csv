@@ -1,0 +1,8 @@
+"0",""
+"0","# Verificar los nombres de las columnas de las probabilidades de predicción"
+"0","colnames(prob_predictions)"
+"1","[1]"
+"1"," ""X0"""
+"1"," ""X1"""
+"1","
+"

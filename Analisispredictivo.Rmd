@@ -1,0 +1,387 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+En este analisis predictivo, usando el paquete caret, quiero mostrar la probabilidad de supervivencia según la relación entre diferentes variables predictoras (chol, trestbps, thalach) y la variable age.
+
+
+```{r}
+library(caret)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+```{r}
+heart_disease_uci <- read_csv("heart_disease_uci.csv")
+View(heart_disease_uci)
+```
+
+Utilizo la función dummyVars de la librería caret para realizar una codificación one-hot de las variables categóricas y luego convertiremos las variables lógicas a formato numérico.
+
+
+```{r}
+
+# Codificación one-hot para todas las variables categóricas
+dummies <- dummyVars(~ ., data = heart_disease_uci)
+heart_disease_uci_transformed <- predict(dummies, newdata = heart_disease_uci)
+
+
+# Crear un dataframe completo con las nuevas variables dummy y excluir las originales
+heart_disease_uci_final <- bind_cols(select(heart_disease_uci, -c(sex, dataset, cp, restecg, slope, thal)),as.data.frame(heart_disease_uci_transformed))
+
+# Convertir variables lógicas a numéricas
+heart_disease_uci_final$fbs <- as.integer(heart_disease_uci_final$fbs)
+heart_disease_uci_final$exang <- as.integer(heart_disease_uci_final$exang)
+
+# Verificación de la estructura final del dataframe
+str(heart_disease_uci_final)
+
+```
+Después de realizar la codificación one-hot y la conversión de variables lógicas a formato numérico, dataframe heart_disease_uci_final tiene varias columnas duplicadas y con nombres confusos debido a la codificación. Necesitamos limpiar esto antes de proceder con la validación cruzada y el entrenamiento del modelo.
+
+```{r}
+# Seleccionar y renombrar columnas eliminando duplicados
+heart_disease_uci_final_clean <- heart_disease_uci_final %>%
+  select(
+    id = id...1,
+    age = age...2,
+    trestbps = trestbps...3,
+    chol = chol...4,
+    fbs,
+    thalch = thalch...6,
+    exang,
+    oldpeak = oldpeak...8,
+    ca = ca...9,
+    num = num...10,
+    sexFemale,
+    sexMale,
+    datasetCleveland,
+    datasetHungary,
+    datasetSwitzerland,
+    datasetVA_Long_Beach = `datasetVA Long Beach`,
+    cpasymptomatic,
+    cpatypical_angina = `cpatypical angina`,
+    cpnon_anginal = `cpnon-anginal`,
+    cptypical_angina = `cptypical angina`,
+    restecglv_hypertrophy = `restecglv hypertrophy`,
+    restecgnormal,
+    restecgst_t_abnormality = `restecgst-t abnormality`,
+    slopedownsloping,
+    slopeflat,
+    slopeupsloping,
+    thalfixed_defect = `thalfixed defect`,
+    thalnormal,
+    thalreversable_defect = `thalreversable defect`
+  )
+
+# Verificación de la estructura final del dataframe limpio
+str(heart_disease_uci_final_clean)
+```
+
+
+El dataset consiste en 920 pacientes con 41 variables tras pasar las variables categóricas a numérico. Este paso incrementa el número de variables ya que una variable categórica se traduce a tantas variables como valores distintos tenga dicha variable. 
+
+```{r}
+# Nos aseguramos que el dataframe esté en el entorno
+str(heart_disease_uci_final)
+
+head(heart_disease_uci_final)
+dim(heart_disease_uci_final)
+```
+```{r}
+# Mostrar los nombres de las columnas
+names(heart_disease_uci_final)
+
+```
+
+Utilizaremos trainControl para especificar una validación cruzada de 10 particiones (fold 10), guardaremos las predicciones, activaremos el modo verbose y configuraremos el cálculo de curvas ROC.
+```{r}
+# Filtrar las columnas relevantes para el modelado
+data <- heart_disease_uci_final %>%
+  select(age = age...2, chol = chol...4, trestbps = trestbps...3, thalach = thalch...6, outcome = num...10)
+
+# Convertir la variable objetivo a factor si es necesario
+data$outcome <- as.factor(data$outcome)
+
+```
+
+Tenemos que ver si hay valores faltantes:
+
+```{r}
+# Verificar si hay valores faltantes en el dataframe
+sum(is.na(data))
+
+# Verificar valores faltantes por columna
+colSums(is.na(data))
+
+```
+Usamos la función preProcess de caret para imputar valores faltantes.
+
+```{r}
+# Imputar valores faltantes usando el promedio
+preProc <- preProcess(data, method = 'medianImpute')
+data <- predict(preProc, data)
+
+```
+
+Verificamos que ya no haya valores faltantes
+
+```{r}
+# Verificar si hay valores faltantes en el dataframe
+sum(is.na(data))
+
+# Verificar valores faltantes por columna
+colSums(is.na(data))
+
+```
+
+```{r}
+# Asegurarse de que los niveles de la variable objetivo sean nombres válidos
+levels(data$outcome) <- make.names(levels(data$outcome))
+
+# Verificar los niveles
+levels(data$outcome)
+```
+
+Necesitamos convertir outcome en una variable binaria, en 0 (para "x0") y 1 (para cualquier otra cosa):
+
+
+```{r}
+# Verificar la distribución de los niveles de la variable outcome original
+table(data$outcome)
+
+```
+```{r}
+# Verificar la distribución de los niveles de la variable outcome original
+print(table(data$outcome))
+
+# Ajustar la lógica de conversión si es necesario
+data$outcome_binary <- ifelse(data$outcome == "X0", 0, 1)
+data$outcome_binary <- as.factor(data$outcome_binary)
+
+# Verificar los niveles y la distribución de la nueva variable binaria
+print(levels(data$outcome_binary))
+print(table(data$outcome_binary))
+
+```
+
+
+```{r}
+# Verificar los niveles de la variable binaria y asegurarse de que sean nombres válidos
+levels(data$outcome_binary) <- make.names(levels(data$outcome_binary))
+
+# Verificar nuevamente los niveles
+print(levels(data$outcome_binary))
+
+```
+Explicación de las variables binarias:
+
+(outcome_binary) se ha dividido en dos clases: x0 y x1. Estas clases representan dos posibles resultados.
+
+Significado de las Clases x0 y x1:
+Clase x0: corresponde a los pacientes con el valor original "X0" en outcome.
+Clase x1: incluye las observaciones con los valores originales "X1", "X2", "X3" y "X4" en outcome.
+
+Para nuestro análisis y visualización, estamos interesados en la probabilidad de pertenecer a la clase x1 (probabilidad de supervivencia, según cómo definimos nuestras clases).
+
+
+
+
+
+## Función trainControl
+Utilizaremos trainControl para especificar una validación cruzada de 10 particiones (fold 10), guardaremos las predicciones, activaremos el modo verbose y configuraremos el cálculo de curvas ROC.
+
+Ahora que tenemos las variables categóricas codificadas y las variables lógicas convertidas a numéricas, podemos proceder con la configuración de la validación cruzada y el entrenamiento del modelo de regresión logística.
+  
+  
+```{r}
+myControl_clas <- trainControl(
+method = "cv", # Validación cruzada
+number = 10,  # Tamaño fold: 10
+summaryFunction = twoClassSummary, # Función de resumen para curvas ROC
+classProbs = TRUE, # IMPORTANT! # El modelo debe proporcionar probabilidad de las clases
+savePredictions = TRUE, # Guardar las predicciones
+verbose = FALSE
+)
+# Ahora podemos usar esta configuración en la función `train` para entrenar el modelo.
+```
+
+## Función train: logistic regression model
+
+
+Vamos a crear un modelo con la función glm, que genera un logistic regression model. 
+
+
+
+```{r}
+# Establecer la semilla para asegurar la reproducibilidad
+set.seed(123)
+
+# Entrenar el modelo de regresión logística con validación cruzada
+model_clas_glm <- train(
+  outcome_binary ~ age + chol + trestbps + thalach, 
+  data = data, 
+  method = "glm", 
+  family = "binomial", 
+  trControl = myControl_clas,
+  metric = "ROC"  # Usamos ROC como métrica principal
+)
+
+# Imprimir el modelo para ver el resultado
+print(model_clas_glm)
+
+```
+Una vez entrenado el modelo, procedemos a evaluarlo.
+
+Evaluar el modelo es crucial porque nos permite entender si está funcionando nuestro modelo de predicción.
+
+```{r}
+# Predicciones utilizando validación cruzada
+predictions <- predict(model_clas_glm, data)
+
+# Generar probabilidades de predicción
+prob_predictions <- predict(model_clas_glm, data, type = "prob")
+
+# Evaluar el modelo
+conf_matrix <- confusionMatrix(predictions, data$outcome_binary)
+print(conf_matrix)
+
+# Calcular y mostrar la curva ROC
+library(pROC)
+roc_curve <- roc(response = data$outcome_binary, predictor = prob_predictions[,2])
+plot(roc_curve, col = "blue", main = "Curva ROC")
+auc(roc_curve)
+
+```
+
+Muestra un buen rendimiento del modelo con un área bajo la curva (AUC) significativa. 
+
+Visualización de Resultados:
+
+Ahora vamos a visualizar las probabilidades de supervivencia según los valores de age, chol, trestbps, thalach.
+
+Usaremos ggplot2 para crear una visualización clara de las probabilidades de supervivencia.
+
+```{r}
+# Verificar las primeras filas de las probabilidades de predicción
+head(prob_predictions)
+
+# Verificar los nombres de las columnas de las probabilidades de predicción
+colnames(prob_predictions)
+
+```
+
+```{r}
+# Añadir las probabilidades al conjunto de datos
+data$prob_survival <- prob_predictions[,"X1"]  
+
+# Verificar la estructura del conjunto de datos
+head(data)
+
+```
+
+Para la visualización de las probabilidades de supervivencia, usamos ggplot2 para crear gráficos de dispersión que muestran las probabilidades de supervivencia según chol, trestbps, y thalach en función de age.
+
+
+
+```{r}
+# Instalar el paquete gridExtra
+install.packages("gridExtra")
+
+# Cargar el paquete gridExtra
+library(gridExtra)
+
+```
+
+
+
+```{r}
+# Cargar la librería ggplot2
+library(ggplot2)
+
+# Crear gráficos de dispersión para visualizar las probabilidades de supervivencia
+p1 <- ggplot(data, aes(x = chol, y = age, color = prob_survival)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Probabilidades de Supervivencia según Chol y Age",
+       x = "Colesterol",
+       y = "Edad",
+       color = "Probabilidad de Supervivencia") +
+  theme_minimal()
+
+p2 <- ggplot(data, aes(x = trestbps, y = age, color = prob_survival)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Probabilidades de Supervivencia según Trestbps y Age",
+       x = "Presión arterial en reposo",
+       y = "Edad",
+       color = "Probabilidad de Supervivencia") +
+  theme_minimal()
+
+p3 <- ggplot(data, aes(x = thalach, y = age, color = prob_survival)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Probabilidades de Supervivencia según Thalach y Age",
+       x = "Frecuencia cardiaca máxima",
+       y = "Edad",
+       color = "Probabilidad de Supervivencia") +
+  theme_minimal()
+
+# Usar la función gridExtra para visualizar los gráficos en una cuadrícula
+grid.arrange(p1, p2, p3, nrow = 3)
+
+
+```
+Los tres gráficos de dispersión muestran la relación entre diferentes variables predictoras (chol, trestbps, thalach) y la variable age, coloreados según la probabilidad de supervivencia (prob_survival), que se calcula a partir del modelo de regresión logística. Los colores van de azul (baja probabilidad de supervivencia) a rojo (alta probabilidad de supervivencia).
+
+
+Interpretación de Cada Gráfico:
+
+1. Probabilidades de Supervivencia según Chol y Age:
+
+  Eje X (Colesterol): Los valores de colesterol de los pacientes.
+  Eje Y (Edad): Las edades de los pacientes.
+  Color: Probabilidad de supervivencia.
+  
+  Interpretación:
+  Observamos que para niveles de colesterol más altos, hay una variabilidad considerable    en la probabilidad de supervivencia.
+  La probabilidad de supervivencia (color rojo) parece disminuir ligeramente con el         aumento del colesterol, pero no hay una tendencia clara debido a la dispersión de los     puntos.
+  
+  
+2. Probabilidades de Supervivencia según Trestbps y Age:
+
+  Eje X (Presión arterial en reposo): Los valores de presión arterial en reposo de los     pacientes.
+  Eje Y (Edad): Las edades de los pacientes.
+  Color: Probabilidad de supervivencia.
+  
+  Interpretación:
+  Similar al gráfico anterior, no hay una tendencia clara con la presión arterial en        reposo.
+  Se observa que la mayoría de los puntos están concentrados en ciertos rangos de presión   arterial, y la probabilidad de supervivencia varía dentro de esos rangos.
+  
+  
+3.Probabilidades de Supervivencia según Thalach y Age:
+
+  Eje X (Frecuencia cardiaca máxima): Los valores de la frecuencia cardiaca máxima de los     pacientes.
+  Eje Y (Edad): Las edades de los pacientes.
+  Color: Probabilidad de supervivencia.
+  
+  Interpretación:
+  Aquí se observa una tendencia más clara: los pacientes con mayor frecuencia cardiaca     máxima tienden a tener mayores probabilidades de supervivencia (más puntos rojos).
+  Los pacientes con menor frecuencia cardiaca máxima tienden a tener menores                probabilidades de supervivencia (más puntos azules).
+
+
+Conclusiones Generales:
+
+  Colesterol (Chol): No muestra una tendencia clara respecto a la probabilidad de             supervivencia.
+  
+  Presión arterial en reposo (Trestbps): Tampoco muestra una tendencia clara, pero hay una     variabilidad considerable en las probabilidades dentro de ciertos rangos de presión        arterial.
+  
+  Frecuencia cardiaca máxima (Thalach): Muestra una tendencia más clara, donde una mayor    frecuencia cardiaca máxima está asociada con una mayor probabilidad de supervivencia.
+
+
+
+
+
+

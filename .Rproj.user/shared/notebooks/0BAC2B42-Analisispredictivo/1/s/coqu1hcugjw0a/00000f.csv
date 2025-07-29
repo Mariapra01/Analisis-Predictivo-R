@@ -1,0 +1,14 @@
+"0","heart_disease_uci <- read_csv(""heart_disease_uci.csv"")"
+"1","[1mRows: [22m[34m920[39m [1mColumns: [22m[34m16[39m
+"
+"1","[36m──[39m [1mColumn specification[22m [36m────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m
+[1mDelimiter:[22m "",""
+[31mchr[39m (6): sex, dataset, cp, restecg, slope, thal
+[32mdbl[39m (8): id, age, trestbps, chol, thalch, oldpeak, ca, num
+[33mlgl[39m (2): fbs, exang
+"
+"1","
+[36mℹ[39m Use `spec()` to retrieve the full column specification for this data.
+[36mℹ[39m Specify the column types or set `show_col_types = FALSE` to quiet this message.
+"
+"0","View(heart_disease_uci)"

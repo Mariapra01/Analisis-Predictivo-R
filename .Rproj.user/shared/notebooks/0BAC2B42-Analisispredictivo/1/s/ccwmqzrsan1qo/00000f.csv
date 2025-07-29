@@ -1,0 +1,4 @@
+"0","# Imputar valores faltantes usando el promedio"
+"0","preProc <- preProcess(data, method = 'medianImpute')"
+"0","data <- predict(preProc, data)"
+"0",""

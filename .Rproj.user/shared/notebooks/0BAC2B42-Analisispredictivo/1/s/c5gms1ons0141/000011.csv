@@ -1,0 +1,5 @@
+"0","# Añadir las probabilidades al conjunto de datos"
+"0","data$prob_survival <- prob_predictions[,""X1""]  "
+"0",""
+"0","# Verificar la estructura del conjunto de datos"
+"0","head(data)"

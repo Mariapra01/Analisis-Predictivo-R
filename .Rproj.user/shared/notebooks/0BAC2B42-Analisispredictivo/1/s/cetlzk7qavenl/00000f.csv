@@ -1,0 +1,7 @@
+"0","# Filtrar las columnas relevantes para el modelado"
+"0","data <- heart_disease_uci_final %>%"
+"0","  select(age = age...2, chol = chol...4, trestbps = trestbps...3, thalach = thalch...6, outcome = num...10)"
+"0",""
+"0","# Convertir la variable objetivo a factor si es necesario"
+"0","data$outcome <- as.factor(data$outcome)"
+"0",""
